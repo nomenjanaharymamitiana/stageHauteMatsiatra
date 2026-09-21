@@ -78,3 +78,11 @@ def download_document(num_ref: str, db: Session = Depends(get_db)):
 @router.delete("/{num_ref}", status_code=status.HTTP_200_OK)
 def delete_document(num_ref: str, db: Session = Depends(get_db)):
     return crud_document.delete_document(db, num_ref)
+
+@router.get("/", response_model=List[schemas.DocumentOut])
+def list_documents(
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    return crud_document.get_all_documents(db=db, skip=skip, limit=limit)

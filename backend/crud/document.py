@@ -122,3 +122,12 @@ def delete_document(db: Session, num_ref: str):
     db.delete(doc)
     db.commit()
     return {"message": f"Document {num_ref} supprimé avec succès."}
+
+def get_all_documents(db: Session, skip: int = 0, limit: int = 50) -> List[models.Document]:
+    return (
+        db.query(models.Document)
+        .order_by(models.Document.date_num.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
