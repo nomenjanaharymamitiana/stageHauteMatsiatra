@@ -23,18 +23,6 @@ class DocumentOut(DocumentBase):
 class SearchFilter(BaseModel):
     num_ref: Optional[str] = None
     cat: Optional[str] = None
-    annee_redac: Optional[date] = None  # Modifié de int vers date
+    annee_redac: Optional[date] = None  
     format: Optional[str] = None
     title: Optional[str] = None
-class LoginRequest(BaseModel):
-    im: str
-    mdp: str
-
-class UserOut(BaseModel):
-    im: str
-    nom: str
-    prenom: str
-    type_user: str
-
-    class Config:
-        from_attributes = True
