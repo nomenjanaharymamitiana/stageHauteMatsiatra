@@ -10,4 +10,13 @@ __all__ = [
     "DocumentOut",
     "SearchFilter",
     "JournalOut",
+    "DocumentUpdate"
 ]
+from .document import (
+    DocumentBase,
+    DocumentCreate,
+    DocumentUpdate,
+    DocumentOut,
+    SearchFilter,
+)
+from .auth import *

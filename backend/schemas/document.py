@@ -7,15 +7,21 @@ class DocumentBase(BaseModel):
     date_num: date
     format: str
     cat: str
-    annee_redac: date  # Modifié de int vers date
+    annee_redac: date
     title: str
 
 class DocumentCreate(DocumentBase):
     pass
 
+# Schéma pour la mise à jour (tous les champs modifiables sont optionnels)
+class DocumentUpdate(BaseModel):
+    title: Optional[str] = None
+    cat: Optional[str] = None
+    annee_redac: Optional[date] = None
+
 class DocumentOut(DocumentBase):
     file_path: str
-    # Le champ created_at a été retiré car il n'existe pas dans le modèle Document
+    im_dag_rh: Optional[str] = None
 
     class Config:
         from_attributes = True

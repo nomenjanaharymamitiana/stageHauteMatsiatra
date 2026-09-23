@@ -2,30 +2,77 @@ import React, { useState, useEffect } from "react";
 import logoGed from "../assets/WhatsApp Image 2026-09-21 at 11.01.52.jpeg";
 import "../styles/theme.css";
 import DocumentUploadModal from "../components/DocumentUploadModal";
+import DocumentEditModal from "../components/DocumentEditModal";
+import translations from "../locales/translations.json";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/documents`;
 
+const CATEGORIES = [
+  { id: "Nomination", icon: "bi-person-badge-fill", color: "#2563eb", bg: "#eff6ff" },
+  { id: "Finance", icon: "bi-cash-coin", color: "#10b981", bg: "#ecfdf5" },
+  { id: "Autre", icon: "bi-folder2-open", color: "#7c3aed", bg: "#f5f3ff" }
+];
+
 export default function Dashboard({ user, onLogout }) {
+  const [lang, setLang] = useState("fr"); // "fr" ou "mg"
+  const t = translations[lang];
+
   const [activeTab, setActiveTab] = useState("tableau");
   const [documents, setDocuments] = useState([]);
+  const [allDocuments, setAllDocuments] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // État pour la fenêtre modale de création
+  // Modale de création
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // État pour suivre quel menu 3 points est ouvert
-  const [openMenuId, setOpenMenuId] = useState(null);
 
-  // Charger la liste des documents depuis l'API FastAPI
-  const fetchDocuments = async () => {
-    setLoading(true);
+  // Modale de modification
+  const [docToEdit, setDocToEdit] = useState(null);
+
+  // Visionneuse flottante (Modal Flottant)
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Modale de confirmation de suppression
+  const [docToDelete, setDocToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("token") || user?.im || user?.im_dag_rh || "";
+    return {
+      "Authorization": `Bearer ${token}`,
+      "X-User-IM": token
+    };
+  };
+
+  const fetchAllDocuments = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/`);
+      const response = await fetch(`${API_BASE_URL}/`, { headers: getAuthHeaders() });
       if (response.ok) {
         const data = await response.json();
-        setDocuments(Array.isArray(data) ? data : data.documents || []);
-      } else {
-        console.error("Erreur HTTP :", response.status);
+        const list = Array.isArray(data) ? data : data.documents || [];
+        setAllDocuments(list);
+      }
+    } catch (error) {
+      console.error("Erreur lors de la récupération globale :", error);
+    }
+  };
+
+  const fetchDocuments = async (category = selectedCategory) => {
+    setLoading(true);
+    try {
+      let url = `${API_BASE_URL}/`;
+      if (category) {
+        url = `${API_BASE_URL}/search?cat=${encodeURIComponent(category)}`;
+      }
+
+      const response = await fetch(url, { headers: getAuthHeaders() });
+      if (response.ok) {
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : data.documents || [];
+        setDocuments(list);
       }
     } catch (error) {
       console.error("Erreur de connexion à l'API :", error);
@@ -35,44 +82,95 @@ export default function Dashboard({ user, onLogout }) {
   };
 
   useEffect(() => {
-    fetchDocuments();
+    fetchAllDocuments();
+    fetchDocuments(null);
   }, []);
 
-  // Fermer le menu déroulant au clic n'importe où ailleurs sur la page
   useEffect(() => {
-    const handleOutsideClick = () => setOpenMenuId(null);
-    window.addEventListener("click", handleOutsideClick);
-    return () => window.removeEventListener("click", handleOutsideClick);
-  }, []);
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
-  // Action : Supprimer un document
-  const handleDelete = async (num_ref) => {
-    setOpenMenuId(null);
-    if (!window.confirm(`Voulez-vous vraiment supprimer le document ${num_ref} ?`)) return;
+  const handleOpenPreview = async (doc) => {
+    setPreviewDoc(doc);
+    setPreviewLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${encodeURIComponent(num_ref)}`, {
-        method: "DELETE",
+      const response = await fetch(`${API_BASE_URL}/${encodeURIComponent(doc.num_ref)}/preview`, {
+        headers: getAuthHeaders()
       });
+
       if (response.ok) {
-        setDocuments(documents.filter((doc) => doc.num_ref !== num_ref));
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
       } else {
-        alert("Erreur lors de la suppression du document.");
+        alert(t.preview.error);
+        setPreviewDoc(null);
       }
-    } catch (error) {
-      console.error("Erreur réseau :", error);
+    } catch (err) {
+      console.error("Erreur lors de la récupération du fichier :", err);
+      alert(t.preview.error);
+      setPreviewDoc(null);
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
-  // Action : Modifier
-  const handleEdit = (doc) => {
-    setOpenMenuId(null);
-    alert(`Modification du document ${doc.num_ref}`);
+  const handleClosePreview = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+    setPreviewDoc(null);
+    setIsFullscreen(false);
   };
 
-  const toggleMenu = (e, num_ref) => {
-    e.stopPropagation();
-    setOpenMenuId(openMenuId === num_ref ? null : num_ref);
+  const handleCategoryClick = (catId) => {
+    const newCategory = selectedCategory === catId ? null : catId;
+    setSelectedCategory(newCategory);
+    fetchDocuments(newCategory);
+  };
+
+  const getCategoryCount = (catId) => {
+    return allDocuments.filter(
+      (doc) => doc.cat && doc.cat.trim().toLowerCase() === catId.toLowerCase()
+    ).length;
+  };
+
+  const confirmDelete = async () => {
+    if (!docToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/${encodeURIComponent(docToDelete.num_ref)}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        }
+      });
+
+      if (response.ok) {
+        setDocuments((prev) => prev.filter((doc) => doc.num_ref !== docToDelete.num_ref));
+        setAllDocuments((prev) => prev.filter((doc) => doc.num_ref !== docToDelete.num_ref));
+        setDocToDelete(null);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.detail || "Erreur lors de la suppression du document.");
+      }
+    } catch (error) {
+      console.error("Erreur réseau :", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleEdit = (doc) => {
+    setDocToEdit(doc);
   };
 
   return (
@@ -83,8 +181,8 @@ export default function Dashboard({ user, onLogout }) {
           <div className="brand-header">
             <img src={logoGed} alt="Logo GED" className="brand-logo-img" />
             <div>
-              <h1 className="brand-title">Numérisation</h1>
-              <p className="brand-subtitle">District Haute Matsiatra</p>
+              <h1 className="brand-title">{t.brand.title}</h1>
+              <p className="brand-subtitle">{t.brand.subtitle}</p>
             </div>
           </div>
 
@@ -93,40 +191,41 @@ export default function Dashboard({ user, onLogout }) {
               className={`nav-item ${activeTab === "tableau" ? "active" : ""}`}
               onClick={() => setActiveTab("tableau")}
             >
-              <i className="bi bi-speedometer2"></i> Tableau de bord
+              <i className="bi bi-grid-1x2-fill"></i> {t.nav.dashboard}
             </button>
             <button
               className="nav-item"
               onClick={() => setIsModalOpen(true)}
             >
-              <i className="bi bi-file-earmark-plus"></i> Nouveau dossier
+              <i className="bi bi-file-earmark-plus-fill"></i> {t.nav.new_folder}
             </button>
             <button
               className={`nav-item ${activeTab === "recherche" ? "active" : ""}`}
               onClick={() => setActiveTab("recherche")}
             >
-              <i className="bi bi-search"></i> Recherche
+              <i className="bi bi-search"></i> {t.nav.search}
             </button>
             <button
               className={`nav-item ${activeTab === "documents" ? "active" : ""}`}
               onClick={() => setActiveTab("documents")}
             >
-              <i className="bi bi-folder2-open"></i> Documents
+              <i className="bi bi-folder-fill"></i> {t.nav.documents}
             </button>
             <button
               className={`nav-item ${activeTab === "parametres" ? "active" : ""}`}
               onClick={() => setActiveTab("parametres")}
             >
-              <i className="bi bi-gear"></i> Paramètres
+              <i className="bi bi-gear-fill"></i> {t.nav.settings}
             </button>
           </nav>
         </div>
 
         <div className="sidebar-footer">
-          <p style={{ margin: "0 0 4px 0" }}>
-            <i className="bi bi-circle-fill" style={{ color: "#10b981", fontSize: "8px" }}></i> Système en ligne
+          <p style={{ margin: "0 0 4px 0", display: "flex", alignItems: "center", gap: "6px" }}>
+            <i className="bi bi-circle-fill" style={{ color: "#10b981", fontSize: "8px" }}></i>
+            <span>{t.brand.status}</span>
           </p>
-          <span style={{ color: "#64748b" }}>Version 1.0</span>
+          <span>{t.brand.version}</span>
         </div>
       </aside>
 
@@ -134,25 +233,84 @@ export default function Dashboard({ user, onLogout }) {
       <div className="main-wrapper">
         <header className="topbar">
           <div className="search-bar">
-            <i className="bi bi-search"></i>
-            <input type="text" placeholder="Rechercher un dossier, une référence, un titre..." />
+            <i className="bi bi-search" style={{ color: "#94a3b8" }}></i>
+            <input type="text" placeholder={t.search_placeholder} />
           </div>
 
-          <div className="topbar-right">
-            <i className="bi bi-bell" style={{ fontSize: "18px", cursor: "pointer" }}></i>
+          <div className="topbar-right" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            {/* SÉLECTEUR DE LANGUE AVEC DRAPEAUX */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                backgroundColor: "#f1f5f9",
+                borderRadius: "20px",
+                padding: "3px",
+                border: "1px solid #cbd5e1"
+              }}
+            >
+              <button
+                onClick={() => setLang("fr")}
+                title="Français"
+                style={{
+                  background: lang === "fr" ? "#ffffff" : "transparent",
+                  border: "none",
+                  borderRadius: "16px",
+                  padding: "4px 10px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontWeight: lang === "fr" ? "700" : "500",
+                  fontSize: "12px",
+                  color: "#0f172a",
+                  boxShadow: lang === "fr" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  transition: "all 0.2s"
+                }}
+              >
+                <span style={{ fontSize: "14px" }}>🇫🇷</span> FR
+              </button>
+              <button
+                onClick={() => setLang("mg")}
+                title="Malagasy"
+                style={{
+                  background: lang === "mg" ? "#ffffff" : "transparent",
+                  border: "none",
+                  borderRadius: "16px",
+                  padding: "4px 10px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontWeight: lang === "mg" ? "700" : "500",
+                  fontSize: "12px",
+                  color: "#0f172a",
+                  boxShadow: lang === "mg" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  transition: "all 0.2s"
+                }}
+              >
+                <span style={{ fontSize: "14px" }}>🇲🇬</span> MG
+              </button>
+            </div>
+
+            <div style={{ position: "relative", cursor: "pointer" }}>
+              <i className="bi bi-bell-fill" style={{ fontSize: "18px", color: "#64748b" }}></i>
+            </div>
+            
             <div className="user-profile">
               <div className="user-avatar-circle">
                 {user?.prenom ? user.prenom.charAt(0).toUpperCase() : "M"}
               </div>
               <div style={{ fontSize: "13px" }}>
-                <strong style={{ display: "block", color: "#0f172a" }}>
-                  {user?.prenom || "Mamitiana"}
+                <strong style={{ display: "block", color: "#0f172a", lineHeight: "1.2" }}>
+                  {user?.prenom || "Jean"}
                 </strong>
                 <span style={{ color: "#64748b", fontSize: "11px" }}>
-                  {user?.type_user || "Agent"}
+                  {user?.type_user || "dag_rh"}
                 </span>
               </div>
             </div>
+
             <button 
               onClick={onLogout} 
               style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#64748b" }}
@@ -166,237 +324,239 @@ export default function Dashboard({ user, onLogout }) {
         <main className="content-body">
           <div className="greeting-row">
             <div>
-              <h2 className="greeting-title">Bonjour {user?.prenom || "Mamitiana"} !</h2>
-              <p className="greeting-sub">
-                Bienvenue sur le système de numérisation et de gestion des dossiers.
-              </p>
+              <h2 className="greeting-title">{t.greeting.hello} {user?.prenom || "Jean"} !</h2>
+              <p className="greeting-sub">{t.greeting.sub_filter}</p>
             </div>
             <div className="date-box">
-              <i className="bi bi-calendar3"></i> {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              <i className="bi bi-calendar3" style={{ color: "#2563eb" }}></i> 
+              {new Date().toLocaleDateString(lang === "mg" ? "mg-MG" : "fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </div>
           </div>
 
-          {/* CARTES STATISTIQUES */}
+          {/* CARTES DES CATÉGORIES INTERACTIVES */}
           <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon" style={{ backgroundColor: "#1e293b", color: "#fff" }}>
-                <i className="bi bi-folder-fill"></i>
-              </div>
-              <div>
-                <span className="stat-title">Total des documents</span>
-                <div className="stat-val">{documents.length}</div>
-                <span className="stat-trend" style={{ color: "#10b981" }}>
-                  <i className="bi bi-arrow-up-short"></i> En base
-                </span>
-              </div>
-            </div>
+            {CATEGORIES.map((cat) => {
+              const count = getCategoryCount(cat.id);
+              const isSelected = selectedCategory === cat.id;
 
-            <div className="stat-card">
-              <div className="stat-icon" style={{ backgroundColor: "#10b981", color: "#fff" }}>
-                <i className="bi bi-file-earmark-check-fill"></i>
-              </div>
-              <div>
-                <span className="stat-title">Numérisés</span>
-                <div className="stat-val">{documents.length}</div>
-                <span className="stat-trend" style={{ color: "#10b981" }}>
-                  <i className="bi bi-arrow-up-short"></i> 100%
-                </span>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon" style={{ backgroundColor: "#f59e0b", color: "#fff" }}>
-                <i className="bi bi-clock-history"></i>
-              </div>
-              <div>
-                <span className="stat-title">En attente</span>
-                <div className="stat-val">0</div>
-                <span className="stat-trend" style={{ color: "#64748b" }}>À jour</span>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon" style={{ backgroundColor: "#6366f1", color: "#fff" }}>
-                <i className="bi bi-check-circle-fill"></i>
-              </div>
-              <div>
-                <span className="stat-title">Archivés</span>
-                <div className="stat-val">{documents.length}</div>
-                <span className="stat-trend" style={{ color: "#10b981" }}>Disponibles</span>
-              </div>
-            </div>
+              return (
+                <div
+                  key={cat.id}
+                  className="stat-card"
+                  onClick={() => handleCategoryClick(cat.id)}
+                  style={{
+                    cursor: "pointer",
+                    border: isSelected ? `2px solid ${cat.color}` : "1px solid #e2e8f0",
+                    boxShadow: isSelected ? "0 10px 15px -3px rgba(0, 0, 0, 0.1)" : "none",
+                    transition: "all 0.2s ease",
+                    transform: isSelected ? "translateY(-2px)" : "none"
+                  }}
+                >
+                  <div className="stat-icon" style={{ backgroundColor: cat.bg, color: cat.color }}>
+                    <i className={`bi ${cat.icon}`}></i>
+                  </div>
+                  <div>
+                    <span className="stat-title">{t.categories[cat.id] || cat.id}</span>
+                    <div className="stat-val">
+                      {count} {count > 1 ? t.categories.docs : t.categories.doc}
+                    </div>
+                    <span className="stat-trend" style={{ color: isSelected ? cat.color : "#64748b" }}>
+                      {isSelected ? t.categories.selected : t.categories.click_to_filter}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* TABLEAU DES DOCUMENTS */}
-          <div className="card-box" style={{ overflow: "visible" }}>
-            <div className="card-box-header">
-              <h3 className="card-box-title">Derniers documents enregistrés</h3>
-              <div style={{ display: "flex", gap: "8px" }}>
+          <div className="card-box">
+            <div className="card-box-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 className="card-box-title">
+                  {selectedCategory 
+                    ? `${t.table.title_category} ${t.categories[selectedCategory] || selectedCategory}` 
+                    : t.table.title_all}
+                </h3>
+                {selectedCategory && (
+                  <button
+                    onClick={() => {
+                      setSelectedCategory(null);
+                      fetchDocuments(null);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#2563eb",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      padding: 0,
+                      marginTop: "4px",
+                      textDecoration: "underline"
+                    }}
+                  >
+                    {t.table.back_to_all} ({allDocuments.length})
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: "10px" }}>
                 <button 
-                  className="quick-access-btn" 
-                  style={{ width: "auto", padding: "6px 12px", margin: 0, fontSize: "12px", backgroundColor: "#0f172a", color: "#fff" }}
+                  className="btn-primary-action"
                   onClick={() => setIsModalOpen(true)}
                 >
-                  <i className="bi bi-plus-lg"></i> Ajouter un document
+                  <i className="bi bi-plus-lg"></i> {t.table.btn_add}
                 </button>
                 <button 
-                  className="quick-access-btn" 
-                  style={{ width: "auto", padding: "6px 12px", margin: 0, fontSize: "12px" }}
-                  onClick={fetchDocuments}
+                  className="btn-secondary-action"
+                  onClick={() => {
+                    fetchAllDocuments();
+                    fetchDocuments(selectedCategory);
+                  }}
                 >
-                  <i className="bi bi-arrow-clockwise"></i> Actualiser
+                  <i className="bi bi-arrow-clockwise"></i> {t.table.btn_refresh}
                 </button>
               </div>
             </div>
 
             {loading ? (
-              <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>Chargement des données...</p>
+              <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>{t.table.loading}</p>
             ) : documents.length === 0 ? (
-              <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>Aucun document enregistré en base.</p>
+              <p style={{ color: "var(--text-muted)", fontSize: "13px", padding: "16px 0" }}>
+                {selectedCategory
+                  ? `${t.table.empty_cat} "${t.categories[selectedCategory] || selectedCategory}".`
+                  : t.table.empty_all}
+              </p>
             ) : (
               <table className="documents-table">
                 <thead>
                   <tr>
-                    <th>N° Réf</th>
-                    <th>Titre</th>
-                    <th>Catégorie</th>
-                    <th>Format</th>
-                    <th>Date Num.</th>
-                    <th>Année Réd.</th>
-                    <th>Agent (IM)</th>
-                    <th style={{ textAlign: "right" }}>Actions</th>
+                    <th>{t.table.cols.ref}</th>
+                    <th>{t.table.cols.title}</th>
+                    <th>{t.table.cols.category}</th>
+                    <th>{t.table.cols.format}</th>
+                    <th>{t.table.cols.date_num}</th>
+                    <th>{t.table.cols.date_redac}</th>
+                    <th>{t.table.cols.agent}</th>
+                    <th style={{ textAlign: "right" }}>{t.table.cols.actions}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {documents.map((doc) => (
                     <tr key={doc.num_ref}>
-                      <td style={{ fontWeight: "600" }}>{doc.num_ref}</td>
+                      <td style={{ fontWeight: "600", color: "#0f172a" }}>{doc.num_ref}</td>
                       <td>{doc.title}</td>
-                      <td>{doc.cat}</td>
                       <td>
-                        <span className="badge-status badge-cours">
-                          {doc.format ? doc.format.toUpperCase() : "DOC"}
+                        <span
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            backgroundColor:
+                              doc.cat === "Nomination" ? "#eff6ff" : doc.cat === "Finance" ? "#ecfdf5" : "#f5f3ff",
+                            color:
+                              doc.cat === "Nomination" ? "#2563eb" : doc.cat === "Finance" ? "#10b981" : "#7c3aed"
+                          }}
+                        >
+                          {t.categories[doc.cat] || doc.cat}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge-format">
+                          {doc.format ? doc.format.toUpperCase() : "PDF"}
                         </span>
                       </td>
                       <td>{doc.date_num}</td>
                       <td>{doc.annee_redac}</td>
                       <td>{doc.im_dag_rh || "-"}</td>
-                      <td style={{ textAlign: "right", position: "relative" }}>
-                        <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                          
-                          {/* Bouton Visualiser */}
-                          <a
-                            href={`${API_BASE_URL}/${encodeURIComponent(doc.num_ref)}/preview`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="btn-visualiser"
+
+                      {/* ICÔNES D'ACTION DIRECTES */}
+                      <td style={{ textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          {/* VISUALISER */}
+                          <button
+                            onClick={() => handleOpenPreview(doc)}
                             style={{
-                              display: "inline-flex",
+                              backgroundColor: "#eff6ff",
+                              color: "#2563eb",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: "6px",
+                              padding: "6px 10px",
+                              fontSize: "12px",
+                              cursor: "pointer",
+                              display: "flex",
                               alignItems: "center",
                               gap: "4px",
-                              padding: "4px 10px",
-                              backgroundColor: "#f1f5f9",
-                              color: "#0f172a",
-                              borderRadius: "6px",
-                              fontSize: "12px",
-                              fontWeight: "500",
-                              textDecoration: "none",
-                              border: "1px solid #cbd5e1"
+                              fontWeight: "600"
                             }}
+                            title={t.actions.preview}
                           >
-                            <i className="bi bi-eye"></i> Visualiser
-                          </a>
-
-                          {/* Bouton 3 Points (...) */}
-                          <button
-                            onClick={(e) => toggleMenu(e, doc.num_ref)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              padding: "4px 8px",
-                              fontSize: "16px",
-                              color: "#64748b",
-                              borderRadius: "4px"
-                            }}
-                            title="Plus d'options"
-                          >
-                            <i className="bi bi-three-dots-vertical"></i>
+                            <i className="bi bi-eye"></i>
+                            <span>{t.actions.preview}</span>
                           </button>
 
-                          {/* Menu déroulant au clic sur les 3 points */}
-                          {openMenuId === doc.num_ref && (
-                            <div
-                              style={{
-                                position: "absolute",
-                                right: 0,
-                                top: "100%",
-                                marginTop: "4px",
-                                backgroundColor: "#ffffff",
-                                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-                                borderRadius: "8px",
-                                border: "1px solid #e2e8f0",
-                                zIndex: 50,
-                                width: "140px",
-                                textAlign: "left",
-                                overflow: "hidden"
-                              }}
-                            >
-                              <a
-                                href={`${API_BASE_URL}/${encodeURIComponent(doc.num_ref)}/download`}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "8px",
-                                  padding: "8px 12px",
-                                  fontSize: "13px",
-                                  color: "#334155",
-                                  textDecoration: "none",
-                                  cursor: "pointer"
-                                }}
-                              >
-                                <i className="bi bi-download" style={{ color: "#0284c7" }}></i> Télécharger
-                              </a>
+                          {/* TÉLÉCHARGER */}
+                          <a
+                            href={`${API_BASE_URL}/${encodeURIComponent(doc.num_ref)}/download`}
+                            download
+                            style={{
+                              backgroundColor: "#f0fdf4",
+                              color: "#16a34a",
+                              border: "1px solid #bbf7d0",
+                              borderRadius: "6px",
+                              padding: "6px 10px",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              textDecoration: "none"
+                            }}
+                            title={t.actions.download}
+                          >
+                            <i className="bi bi-download"></i>
+                          </a>
 
-                              <button
-                                onClick={() => handleEdit(doc)}
-                                style={{
-                                  width: "100%",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "8px",
-                                  padding: "8px 12px",
-                                  fontSize: "13px",
-                                  color: "#334155",
-                                  background: "none",
-                                  border: "none",
-                                  cursor: "pointer"
-                                }}
-                              >
-                                <i className="bi bi-pencil" style={{ color: "#eab308" }}></i> Modifier
-                              </button>
+                          {/* MODIFIER */}
+                          <button
+                            onClick={() => handleEdit(doc)}
+                            style={{
+                              backgroundColor: "#fefce8",
+                              color: "#ca8a04",
+                              border: "1px solid #fef08a",
+                              borderRadius: "6px",
+                              padding: "6px 10px",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center"
+                            }}
+                            title={t.actions.edit}
+                          >
+                            <i className="bi bi-pencil"></i>
+                          </button>
 
-                              <button
-                                onClick={() => handleDelete(doc.num_ref)}
-                                style={{
-                                  width: "100%",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "8px",
-                                  padding: "8px 12px",
-                                  fontSize: "13px",
-                                  color: "#ef4444",
-                                  background: "none",
-                                  border: "none",
-                                  borderTop: "1px solid #f1f5f9",
-                                  cursor: "pointer"
-                                }}
-                              >
-                                <i className="bi bi-trash"></i> Supprimer
-                              </button>
-                            </div>
-                          )}
-
+                          {/* SUPPRIMER */}
+                          <button
+                            onClick={() => setDocToDelete(doc)}
+                            style={{
+                              backgroundColor: "#fef2f2",
+                              color: "#dc2626",
+                              border: "1px solid #fecaca",
+                              borderRadius: "6px",
+                              padding: "6px 10px",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center"
+                            }}
+                            title={t.actions.delete}
+                          >
+                            <i className="bi bi-trash"></i>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -408,12 +568,302 @@ export default function Dashboard({ user, onLogout }) {
         </main>
       </div>
 
-      {/* COMPOSANT MODALE D'AJOUT DE DOCUMENT */}
+      {/* VISIONNEUSE / MODAL FLOTTANT DE PRÉVISUALISATION DU DOCUMENT */}
+      {previewDoc && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(15, 23, 42, 0.75)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1100,
+            padding: isFullscreen ? "0" : "24px",
+            transition: "all 0.3s ease"
+          }}
+          onClick={handleClosePreview}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: isFullscreen ? "0" : "16px",
+              width: isFullscreen ? "100vw" : "90%",
+              maxWidth: isFullscreen ? "100vw" : "1000px",
+              height: isFullscreen ? "100vh" : "88vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              overflow: "hidden",
+              border: isFullscreen ? "none" : "1px solid #334155"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* EN-TÊTE DE LA VISIONNEUSE */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 20px",
+                backgroundColor: "#0f172a",
+                color: "#ffffff",
+                borderBottom: "1px solid #1e293b"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <i
+                  className={`bi ${
+                    previewDoc.format?.toLowerCase() === "pdf" ? "bi-file-earmark-pdf-fill" : "bi-file-earmark-image-fill"
+                  }`}
+                  style={{ fontSize: "20px", color: "#38bdf8" }}
+                ></i>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "15px", fontWeight: "600", color: "#f8fafc" }}>
+                    {previewDoc.title}
+                  </h4>
+                  <span style={{ fontSize: "12px", color: "#94a3b8" }}>
+                    {t.preview.ref}: {previewDoc.num_ref} • {t.preview.category}: {t.categories[previewDoc.cat] || previewDoc.cat}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <a
+                  href={`${API_BASE_URL}/${encodeURIComponent(previewDoc.num_ref)}/download`}
+                  download
+                  style={{
+                    backgroundColor: "#1e293b",
+                    color: "#f8fafc",
+                    border: "1px solid #334155",
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    textDecoration: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  <i className="bi bi-download"></i> {t.actions.download}
+                </a>
+
+                <button
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  style={{
+                    backgroundColor: "#1e293b",
+                    color: "#f8fafc",
+                    border: "1px solid #334155",
+                    padding: "6px 10px",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "13px"
+                  }}
+                  title={isFullscreen ? t.preview.exit_fullscreen : t.preview.fullscreen}
+                >
+                  <i className={`bi ${isFullscreen ? "bi-fullscreen-exit" : "bi-arrows-angle-expand"}`}></i>
+                </button>
+
+                <button
+                  onClick={handleClosePreview}
+                  style={{
+                    backgroundColor: "#ef4444",
+                    color: "#ffffff",
+                    border: "none",
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "16px",
+                    marginLeft: "6px"
+                  }}
+                  title={t.preview.close}
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+
+            {/* CORPS DE LA VISIONNEUSE */}
+            <div
+              style={{
+                flex: 1,
+                backgroundColor: "#020617",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "auto"
+              }}
+            >
+              {previewLoading ? (
+                <div style={{ color: "#94a3b8", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      border: "3px solid #334155",
+                      borderTop: "3px solid #38bdf8",
+                      borderRadius: "50%",
+                      animation: "spin 1s linear infinite"
+                    }}
+                  ></div>
+                  <span>{t.preview.loading}</span>
+                </div>
+              ) : previewUrl ? (
+                previewDoc.format?.toLowerCase() === "pdf" || previewDoc.title?.toLowerCase().endsWith(".pdf") ? (
+                  <iframe
+                    src={previewUrl}
+                    title={previewDoc.title}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      border: "none",
+                      backgroundColor: "#ffffff"
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={previewUrl}
+                    alt={previewDoc.title}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      objectFit: "contain"
+                    }}
+                  />
+                )
+              ) : (
+                <span style={{ color: "#ef4444" }}>{t.preview.error}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE DE CONFIRMATION DE SUPPRESSION AVEC LOGO */}
+      {docToDelete && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}
+          onClick={() => setDocToDelete(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "16px",
+              padding: "28px",
+              maxWidth: "420px",
+              width: "90%",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+              textAlign: "center",
+              border: "1px solid #e2e8f0"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ marginBottom: "16px" }}>
+              <img
+                src={logoGed}
+                alt="Logo GED"
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "2px solid #3b82f6"
+                }}
+              />
+            </div>
+
+            <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", color: "#0f172a", fontWeight: "700" }}>
+              {t.delete_modal.title}
+            </h3>
+
+            <p style={{ fontSize: "14px", color: "#64748b", margin: "0 0 20px 0", lineHeight: "1.5" }}>
+              {t.delete_modal.body_text} <strong style={{ color: "#0f172a" }}>{docToDelete.num_ref}</strong> ({docToDelete.title}) ?
+              <br />
+              <span style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px", display: "inline-block" }}>
+                {t.delete_modal.warning}
+              </span>
+            </p>
+
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button
+                onClick={() => setDocToDelete(null)}
+                disabled={isDeleting}
+                style={{
+                  flex: 1,
+                  padding: "10px 16px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#ffffff",
+                  color: "#334155",
+                  fontWeight: "600",
+                  cursor: "pointer"
+                }}
+              >
+                {t.delete_modal.cancel}
+              </button>
+
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                style={{
+                  flex: 1,
+                  padding: "10px 16px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: "#ef4444",
+                  color: "#ffffff",
+                  fontWeight: "600",
+                  cursor: isDeleting ? "not-allowed" : "pointer"
+                }}
+              >
+                {isDeleting ? t.delete_modal.deleting : t.delete_modal.confirm}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE DE NOUVEAU DOCUMENT */}
       <DocumentUploadModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSuccess={fetchDocuments}
-        user={user} // <-- TRANSMISSION DE LA PROP USER
+        onSuccess={() => {
+          fetchAllDocuments();
+          fetchDocuments(selectedCategory);
+        }}
+        user={user}
+      />
+
+      {/* MODALE DE MODIFICATION DE DOCUMENT */}
+      <DocumentEditModal
+        isOpen={!!docToEdit}
+        doc={docToEdit}
+        lang={lang}
+        onClose={() => setDocToEdit(null)}
+        onSuccess={() => {
+          fetchAllDocuments();
+          fetchDocuments(selectedCategory);
+        }}
       />
     </div>
   );

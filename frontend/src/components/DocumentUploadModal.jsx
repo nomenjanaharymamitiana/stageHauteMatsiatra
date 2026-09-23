@@ -2,14 +2,21 @@ import React, { useState } from "react";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/documents`;
 
+// Liste explicite des 3 catégories
+const CATEGORIES = [
+  { value: "Nomination", label: "Nomination" },
+  { value: "Finance", label: "Finance" },
+  { value: "Autre", label: "Autre / Administratif" }
+];
+
 export default function DocumentUploadModal({ isOpen, onClose, onSuccess, user }) {
-  // Récupération dynamique du matricule depuis user.im (correspondant à la colonne de la BD)
-  const agentMatricule = user?.im || user?.im_dag_rh || user?.matricule || "";
+  // Récupération dynamique du matricule / jeton
+  const agentMatricule = user?.im || user?.im_dag_rh || user?.matricule || localStorage.getItem("token") || "";
 
   const [formData, setFormData] = useState({
     num_ref: "",
     date_num: new Date().toISOString().split("T")[0],
-    cat: "",
+    cat: "Nomination",
     annee_redac: new Date().toISOString().split("T")[0],
     title: "",
   });
@@ -42,24 +49,31 @@ export default function DocumentUploadModal({ isOpen, onClose, onSuccess, user }
     }
 
     if (!agentMatricule) {
-      setError("Erreur : Matricule introuvable. Veuillez vérifier que l'utilisateur est bien connecté.");
+      setError("Erreur : Jeton d'authentification ou matricule introuvable. Veuillez vous re-connecter.");
       setLoading(false);
       return;
     }
 
-    // Préparation des données FormData pour l'endpoint POST /api/v1/documents/upload
+    // Préparation des données FormData pour multipart/form-data
     const uploadData = new FormData();
     uploadData.append("num_ref", formData.num_ref);
     uploadData.append("date_num", formData.date_num);
     uploadData.append("cat", formData.cat);
     uploadData.append("annee_redac", formData.annee_redac);
     uploadData.append("title", formData.title);
-    uploadData.append("im_dag_rh", agentMatricule); // Transmet automatiquement la valeur de user.im
+    uploadData.append("im_dag_rh", agentMatricule);
     uploadData.append("file", file);
 
     try {
+      const token = localStorage.getItem("token") || agentMatricule;
+
       const response = await fetch(`${API_BASE_URL}/upload`, {
         method: "POST",
+        headers: {
+          // Transmission des tokens et matricules d'authentification
+          "Authorization": `Bearer ${token}`,
+          "X-User-IM": agentMatricule
+        },
         body: uploadData,
       });
 
@@ -69,14 +83,14 @@ export default function DocumentUploadModal({ isOpen, onClose, onSuccess, user }
         setFormData({
           num_ref: "",
           date_num: new Date().toISOString().split("T")[0],
-          cat: "",
+          cat: "Nomination",
           annee_redac: new Date().toISOString().split("T")[0],
           title: "",
         });
         setFile(null);
       } else {
-        const errData = await response.json();
-        setError(errData.detail || "Erreur lors de l'enregistrement du document.");
+        const errData = await response.json().catch(() => ({}));
+        setError(errData.detail || "Jeton d'authentification ou matricule manquant.");
       }
     } catch (err) {
       console.error("Erreur d'upload :", err);
@@ -127,15 +141,19 @@ export default function DocumentUploadModal({ isOpen, onClose, onSuccess, user }
           <div style={modalStyles.row}>
             <div style={modalStyles.field}>
               <label style={modalStyles.label}>Catégorie *</label>
-              <input
-                type="text"
+              <select
                 name="cat"
                 value={formData.cat}
                 onChange={handleChange}
-                placeholder="Ex: nomination"
                 required
-                style={modalStyles.input}
-              />
+                style={modalStyles.select}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div style={modalStyles.field}>
@@ -269,6 +287,15 @@ const modalStyles = {
     border: "1px solid #cbd5e1",
     fontSize: "13px",
     outline: "none",
+  },
+  select: {
+    padding: "8px 12px",
+    borderRadius: "6px",
+    border: "1px solid #cbd5e1",
+    fontSize: "13px",
+    outline: "none",
+    backgroundColor: "#ffffff",
+    cursor: "pointer",
   },
   fileInput: {
     fontSize: "13px",

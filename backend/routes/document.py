@@ -4,13 +4,12 @@ from datetime import date
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-
+from .auth import get_current_user
 import schemas
 from crud import document as crud_document
 from database import get_db
 
 router = APIRouter(prefix="/api/v1/documents", tags=["Documents"])
-
 @router.post("/upload", response_model=schemas.DocumentOut, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     num_ref: str = Form(...),
@@ -18,10 +17,19 @@ async def upload_document(
     cat: str = Form(...),
     annee_redac: date = Form(...),
     title: str = Form(...),
-    im_dag_rh: str = Form(...),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)  # Récupère l'agent authentifié depuis le Token
 ):
+    # Récupération automatique du matricule
+    im_dag_rh = getattr(current_user, "im", None) or getattr(current_user, "im_dag_rh", None)
+
+    if not im_dag_rh:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Impossible de déterminer le matricule de l'agent connecté."
+        )
+
     return crud_document.create_document(
         db=db,
         num_ref=num_ref,
@@ -74,10 +82,21 @@ def download_document(num_ref: str, db: Session = Depends(get_db)):
         filename=filename,
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
-
 @router.delete("/{num_ref}", status_code=status.HTTP_200_OK)
-def delete_document(num_ref: str, db: Session = Depends(get_db)):
-    return crud_document.delete_document(db, num_ref)
+def delete_document(
+    num_ref: str, 
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)  # Extraction automatique de l'utilisateur
+):
+    user_im = getattr(current_user, "im", None) or getattr(current_user, "im_dag_rh", None)
+    
+    if not user_im:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Matricule utilisateur introuvable."
+        )
+
+    return crud_document.delete_document(db=db, num_ref=num_ref, im_user=user_im)
 
 @router.get("/", response_model=List[schemas.DocumentOut])
 def list_documents(
@@ -86,3 +105,27 @@ def list_documents(
     db: Session = Depends(get_db)
 ):
     return crud_document.get_all_documents(db=db, skip=skip, limit=limit)
+
+@router.put("/{num_ref}", response_model=schemas.DocumentOut, status_code=status.HTTP_200_OK)
+def update_document(
+    num_ref: str,
+    doc_update: schemas.DocumentUpdate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Met à jour les métadonnées (titre, catégorie, année de rédaction) d'un document existant.
+    """
+    updated_doc = crud_document.update_document(
+        db=db, 
+        num_ref=num_ref, 
+        doc_update=doc_update
+    )
+    
+    if not updated_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Document introuvable sur le serveur."
+        )
+
+    return updated_doc

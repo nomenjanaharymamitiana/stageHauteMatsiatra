@@ -1,0 +1,146 @@
+{
+  "fr": {
+    "brand": {
+      "title": "Numérisation",
+      "subtitle": "District Haute Matsiatra",
+      "status": "Système en ligne",
+      "version": "Version 1.0"
+    },
+    "nav": {
+      "dashboard": "Tableau de bord",
+      "new_folder": "Nouveau dossier",
+      "search": "Recherche",
+      "documents": "Documents",
+      "settings": "Paramètres"
+    },
+    "search_placeholder": "Rechercher un dossier, référence, titre...",
+    "greeting": {
+      "hello": "Bonjour",
+      "sub_filter": "Cliquez sur une catégorie pour afficher uniquement ses documents."
+    },
+    "categories": {
+      "Nomination": "Nomination",
+      "Finance": "Finance",
+      "Autre": "Autre / Administratif",
+      "selected": "● Sélectionné",
+      "click_to_filter": "Cliquez pour filtrer",
+      "doc": "document",
+      "docs": "documents"
+    },
+    "table": {
+      "title_all": "Tous les documents enregistrés",
+      "title_category": "Documents :",
+      "back_to_all": "← Revenir à tous les documents",
+      "btn_add": "Ajouter un document",
+      "btn_refresh": "Actualiser",
+      "loading": "Chargement des données...",
+      "empty_cat": "Aucun document trouvé pour la catégorie",
+      "empty_all": "Aucun document enregistré en base.",
+      "cols": {
+        "ref": "N° Réf",
+        "title": "Titre",
+        "category": "Catégorie",
+        "format": "Format",
+        "date_num": "Date Num.",
+        "date_redac": "Année Réd.",
+        "agent": "Agent (IM)",
+        "actions": "Actions"
+      }
+    },
+    "actions": {
+      "preview": "Visualiser",
+      "download": "Télécharger",
+      "edit": "Modifier",
+      "delete": "Supprimer"
+    },
+    "preview": {
+      "loading": "Chargement du document en cours...",
+      "error": "Impossible de charger le document.",
+      "fullscreen": "Plein écran",
+      "exit_fullscreen": "Réduire",
+      "close": "Fermer",
+      "ref": "Réf",
+      "category": "Catégorie"
+    },
+    "delete_modal": {
+      "title": "Confirmer la suppression",
+      "body_text": "Êtes-vous sûr de vouloir supprimer le document",
+      "warning": "⚠️ Cette action est définitive.",
+      "cancel": "Annuler",
+      "confirm": "Supprimer",
+      "deleting": "Suppression..."
+    }
+  },
+  "mg": {
+    "brand": {
+      "title": "Fampidirana An-tsoratra",
+      "subtitle": "Distrikan'i Haute Matsiatra",
+      "status": "Mandeha ny fitantanana",
+      "version": "Kinova 1.0"
+    },
+    "nav": {
+      "dashboard": "Tabilao fitarihana",
+      "new_folder": "Paihitra vaovao",
+      "search": "Pikarohana",
+      "documents": "Tahirin-kevitra",
+      "settings": "Momba ny rindrankajy"
+    },
+    "search_placeholder": "Hikaroka tahirin-kevitra, laharana, lohateny...",
+    "greeting": {
+      "hello": "Manahoana",
+      "sub_filter": "Tsindrio ny sokajy iray mba hanehoana ireo tahirin-kevitra ao aminy."
+    },
+    "categories": {
+      "Nomination": "Ory / Fanendrena",
+      "Finance": "Fitantanana vola",
+      "Autre": "Hafa / Ara-panjakana",
+      "selected": "● Voafidy",
+      "click_to_filter": "Tsindrio raha hisivana",
+      "doc": "tahirintoetra",
+      "docs": "tahirintoetra"
+    },
+    "table": {
+      "title_all": "Ireo tahirin-kevitra rehetra voatahiry",
+      "title_category": "Tahirin-kevitra :",
+      "back_to_all": "← Hiverina amin'ny tahirin-kevitra rehetra",
+      "btn_add": "Hampiditra tahirin-kevitra",
+      "btn_refresh": "Avoavy indray",
+      "loading": "Am-pakana ny angona...",
+      "empty_cat": "Tsy misy tahirin-kevitra hita amin'ny sokajy",
+      "empty_all": "Tsy misy tahirin-kevitra voasoratra.",
+      "cols": {
+        "ref": "Laharana",
+        "title": "Lohateny",
+        "category": "Sokajy",
+        "format": "Karazany",
+        "date_num": "Daty nampidirana",
+        "date_redac": "Taona nanoratana",
+        "agent": "Mpiasa (IM)",
+        "actions": "Atao"
+      }
+    },
+    "actions": {
+      "preview": "Hijerena",
+      "download": "Hampidina",
+      "edit": "Hanova",
+      "delete": "Fafana"
+    },
+    "preview": {
+      "loading": "Mampiditra ny tahirin-kevitra...",
+      "error": "Tsy afaka sokafana ny tahirin-kevitra.",
+      "fullscreen": "Efijery feno",
+      "exit_fullscreen": "Ahena",
+      "close": "Akatona",
+      "ref": "Laharana",
+      "category": "Sokajy"
+    },
+    "delete_modal": {
+      "title": "Hamarino ny famafana",
+      "body_text": "Tena te hamafa ny tahirin-kevitra ve ianao",
+      "warning": " Tsy azo averina intsony ity asa ity.",
+      "cancel": "Avelao",
+      "confirm": "Fafana",
+      "deleting": "Fafana izao..."
+    }
+  }
+}
