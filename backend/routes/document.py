@@ -10,18 +10,18 @@ from crud import document as crud_document
 from database import get_db
 
 router = APIRouter(prefix="/api/v1/documents", tags=["Documents"])
+
 @router.post("/upload", response_model=schemas.DocumentOut, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     num_ref: str = Form(...),
     date_num: date = Form(...),
     cat: str = Form(...),
-    annee_redac: date = Form(...),
+    annee_redac: str = Form(...),
     title: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)  # Récupère l'agent authentifié depuis le Token
+    current_user = Depends(get_current_user)
 ):
-    # Récupération automatique du matricule
     im_dag_rh = getattr(current_user, "im", None) or getattr(current_user, "im_dag_rh", None)
 
     if not im_dag_rh:
@@ -45,7 +45,7 @@ async def upload_document(
 def search_documents(
     num_ref: Optional[str] = None,
     cat: Optional[str] = None,
-    annee_redac: Optional[date] = None,
+    annee_redac: Optional[str] = None,
     file_format: Optional[str] = None,
     title: Optional[str] = None,
     db: Session = Depends(get_db)
@@ -59,16 +59,54 @@ def search_documents(
         title=title
     )
 
+# --- ROUTES CORBEILLE ---
+
+@router.get("/trash", response_model=List[schemas.DocumentOut])
+def list_trash_documents(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    return crud_document.get_trash_documents(db=db)
+
+@router.post("/{num_ref}/restore", response_model=schemas.DocumentOut, status_code=status.HTTP_200_OK)
+def restore_document(
+    num_ref: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    user_im = getattr(current_user, "im", None) or getattr(current_user, "im_dag_rh", None)
+    if not user_im:
+        raise HTTPException(status_code=400, detail="Matricule utilisateur introuvable.")
+
+    restored_doc = crud_document.restore_document(db=db, num_ref=num_ref, im_user=user_im)
+    if not restored_doc:
+        raise HTTPException(status_code=404, detail="Document introuvable dans la corbeille.")
+    return restored_doc
+
+@router.delete("/{num_ref}/hard", status_code=status.HTTP_200_OK)
+def hard_delete_document(
+    num_ref: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    user_im = getattr(current_user, "im", None) or getattr(current_user, "im_dag_rh", None)
+    if not user_im:
+        raise HTTPException(status_code=400, detail="Matricule utilisateur introuvable.")
+
+    success = crud_document.hard_delete_document(db=db, num_ref=num_ref, im_user=user_im)
+    if not success:
+        raise HTTPException(status_code=404, detail="Document introuvable pour la suppression définitive.")
+    return {"message": f"Le document {num_ref} a été supprimé définitivement."}
+
+# --- ROUTES CONSULTATION & MODIFICATION ---
+
 @router.get("/{num_ref}/preview")
 def preview_document(num_ref: str, db: Session = Depends(get_db)):
-    doc = crud_document.get_document_file_path(db, num_ref) if hasattr(crud_document, 'get_document_file_path') else crud_document.get_document_by_ref(db, num_ref)
+    doc = crud_document.get_document_by_ref(db, num_ref)
     if not doc or not os.path.exists(doc.file_path):
         raise HTTPException(status_code=404, detail="Document introuvable sur le serveur.")
 
-    return FileResponse(
-        path=doc.file_path,
-        headers={"Content-Disposition": "inline"}
-    )
+    return FileResponse(path=doc.file_path, headers={"Content-Disposition": "inline"})
 
 @router.get("/{num_ref}/download")
 def download_document(num_ref: str, db: Session = Depends(get_db)):
@@ -77,26 +115,22 @@ def download_document(num_ref: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Document introuvable sur le serveur.")
 
     filename = os.path.basename(doc.file_path)
-    return FileResponse(
-        path=doc.file_path,
-        filename=filename,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+    return FileResponse(path=doc.file_path, filename=filename, headers={"Content-Disposition": f"attachment; filename={filename}"})
+
 @router.delete("/{num_ref}", status_code=status.HTTP_200_OK)
 def delete_document(
     num_ref: str, 
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)  # Extraction automatique de l'utilisateur
+    current_user = Depends(get_current_user)
 ):
     user_im = getattr(current_user, "im", None) or getattr(current_user, "im_dag_rh", None)
-    
     if not user_im:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Matricule utilisateur introuvable."
-        )
+        raise HTTPException(status_code=400, detail="Matricule utilisateur introuvable.")
 
-    return crud_document.delete_document(db=db, num_ref=num_ref, im_user=user_im)
+    deleted_doc = crud_document.soft_delete_document(db=db, num_ref=num_ref, im_user=user_im)
+    if not deleted_doc:
+        raise HTTPException(status_code=404, detail="Document introuvable ou déjà supprimé.")
+    return {"message": f"Le document {num_ref} a été placé dans la corbeille."}
 
 @router.get("/", response_model=List[schemas.DocumentOut])
 def list_documents(
@@ -113,19 +147,7 @@ def update_document(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Met à jour les métadonnées (titre, catégorie, année de rédaction) d'un document existant.
-    """
-    updated_doc = crud_document.update_document(
-        db=db, 
-        num_ref=num_ref, 
-        doc_update=doc_update
-    )
-    
+    updated_doc = crud_document.update_document(db=db, num_ref=num_ref, doc_update=doc_update)
     if not updated_doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="Document introuvable sur le serveur."
-        )
-
+        raise HTTPException(status_code=404, detail="Document introuvable sur le serveur.")
     return updated_doc

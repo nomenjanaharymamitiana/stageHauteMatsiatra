@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import models
 from database import engine
 from routes import auth_router, document_router
-
+from routes.utlisateur import router as utilisateur_router
 # Création automatique des tables
 models.Base.metadata.create_all(bind=engine)
 
@@ -22,6 +22,7 @@ app.add_middleware(
 # Inclusion des routeurs
 app.include_router(auth_router)
 app.include_router(document_router)
+app.include_router(utilisateur_router)
 
 @app.get("/")
 def root():

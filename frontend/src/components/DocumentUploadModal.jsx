@@ -17,7 +17,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onSuccess, user }
     num_ref: "",
     date_num: new Date().toISOString().split("T")[0],
     cat: "Nomination",
-    annee_redac: new Date().toISOString().split("T")[0],
+    annee_redac: String(new Date().getFullYear()), // Valeur par défaut sous forme de chaîne (ex: "2026")
     title: "",
   });
   const [file, setFile] = useState(null);
@@ -84,7 +84,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onSuccess, user }
           num_ref: "",
           date_num: new Date().toISOString().split("T")[0],
           cat: "Nomination",
-          annee_redac: new Date().toISOString().split("T")[0],
+          annee_redac: String(new Date().getFullYear()),
           title: "",
         });
         setFile(null);
@@ -157,12 +157,15 @@ export default function DocumentUploadModal({ isOpen, onClose, onSuccess, user }
             </div>
 
             <div style={modalStyles.field}>
-              <label style={modalStyles.label}>Date Rédaction *</label>
+              <label style={modalStyles.label}>Année de rédaction *</label>
               <input
-                type="date"
+                type="number"
+                min="1900"
+                max="2099"
                 name="annee_redac"
                 value={formData.annee_redac}
                 onChange={handleChange}
+                placeholder="Ex: 2026"
                 required
                 style={modalStyles.input}
               />

@@ -7,13 +7,12 @@ from sqlalchemy.orm import Session
 from fastapi import UploadFile, HTTPException, status
 import models
 import schemas
-from schemas.document import DocumentUpdate, DocumentCreate, DocumentOut
 
 UPLOAD_DIR = "./uploaded_documents"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def get_agent_dag_rh(db: Session, im_dag_rh: str):
-    return db.query(models.DAG_RH).filter(models.DAG_RH.im == im_dag_rh).first()
+    return db.query(models.Utilisateur).filter(models.Utilisateur.im == im_dag_rh).first()
 
 def get_document_by_ref(db: Session, num_ref: str):
     return db.query(models.Document).filter(models.Document.num_ref == num_ref).first()
@@ -23,7 +22,7 @@ def create_document(
     num_ref: str,
     date_num: date,
     cat: str,
-    annee_redac: date,
+    annee_redac: str,
     title: str,
     im_dag_rh: str,
     file: UploadFile
@@ -57,12 +56,13 @@ def create_document(
         annee_redac=annee_redac,
         title=title,
         file_path=saved_path,
-        im_dag_rh=im_dag_rh
+        im_dag_rh=im_dag_rh,
+        est_sup=False
     )
     db.add(new_doc)
     
     log_entry = models.Journal(
-        id_jour=str(uuid.uuid4()),
+        id_jour=str(uuid.uuid4())[:8],
         date_action=date.today(),
         desc=f"Ajout du document {num_ref} par l'agent {im_dag_rh}",
         num_ref_doc=num_ref,
@@ -78,11 +78,11 @@ def search_documents(
     db: Session,
     num_ref: Optional[str] = None,
     cat: Optional[str] = None,
-    annee_redac: Optional[date] = None,
+    annee_redac: Optional[str] = None,  
     file_format: Optional[str] = None,
     title: Optional[str] = None
 ) -> List[models.Document]:
-    query = db.query(models.Document)
+    query = db.query(models.Document).filter(models.Document.est_sup == False)
 
     if num_ref:
         query = query.filter(models.Document.num_ref.ilike(f"%{num_ref}%"))
@@ -97,21 +97,76 @@ def search_documents(
 
     return query.all()
 
-# MODIFICATION : Prise en compte du matricule im_user réel de l'agent qui supprime
-def delete_document(db: Session, num_ref: str, im_user: str):
+def get_all_documents(db: Session, skip: int = 0, limit: int = 50) -> List[models.Document]:
+    return (
+        db.query(models.Document)
+        .filter(models.Document.est_sup == False)
+        .order_by(models.Document.date_num.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+def get_trash_documents(db: Session) -> List[models.Document]:
+    return (
+        db.query(models.Document)
+        .filter(models.Document.est_sup == True)
+        .order_by(models.Document.date_num.desc())
+        .all()
+    )
+
+def soft_delete_document(db: Session, num_ref: str, im_user: str):
+    doc = db.query(models.Document).filter(models.Document.num_ref == num_ref, models.Document.est_sup == False).first()
+    if not doc:
+        return None
+
+    doc.est_sup = True
+
+    log_entry = models.Journal(
+        id_jour=str(uuid.uuid4())[:8],
+        date_action=date.today(),
+        desc=f"Document mis en corbeille: {num_ref}",
+        num_ref_doc=num_ref,
+        im_user=im_user
+    )
+    db.add(log_entry)
+
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+def restore_document(db: Session, num_ref: str, im_user: str):
+    doc = db.query(models.Document).filter(models.Document.num_ref == num_ref, models.Document.est_sup == True).first()
+    if not doc:
+        return None
+
+    doc.est_sup = False
+
+    log_entry = models.Journal(
+        id_jour=str(uuid.uuid4())[:8],
+        date_action=date.today(),
+        desc=f"Restauration du document: {num_ref}",
+        num_ref_doc=num_ref,
+        im_user=im_user
+    )
+    db.add(log_entry)
+
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+def hard_delete_document(db: Session, num_ref: str, im_user: str):
     doc = get_document_by_ref(db, num_ref)
     if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document non trouvé.")
+        return False
 
-    # Suppression du fichier physique
     if os.path.exists(doc.file_path):
         os.remove(doc.file_path)
 
-    # Inscription dans la table Journal avec le vrai matricule utilisateur
     log_entry = models.Journal(
-        id_jour=str(uuid.uuid4()),
+        id_jour=str(uuid.uuid4())[:8],
         date_action=date.today(),
-        desc=f"Suppression du document {num_ref}",
+        desc=f"Suppression définitive du document {num_ref}",
         num_ref_doc=None,
         im_user=im_user
     )
@@ -119,27 +174,13 @@ def delete_document(db: Session, num_ref: str, im_user: str):
 
     db.delete(doc)
     db.commit()
-    return {"message": f"Document {num_ref} supprimé avec succès."}
+    return True
 
-def get_all_documents(db: Session, skip: int = 0, limit: int = 50) -> List[models.Document]:
-    return (
-        db.query(models.Document)
-        .order_by(models.Document.date_num.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-
-def update_document(
-    db: Session, 
-    num_ref: str, 
-    doc_update: schemas.DocumentUpdate
-):
-    db_doc = db.query(models.Document).filter(models.Document.num_ref == num_ref).first()
+def update_document(db: Session, num_ref: str, doc_update: schemas.DocumentUpdate):
+    db_doc = db.query(models.Document).filter(models.Document.num_ref == num_ref, models.Document.est_sup == False).first()
     if not db_doc:
         return None
 
-    # Récupérer uniquement les champs qui ont été renseignés dans la requête
     update_data = doc_update.model_dump(exclude_unset=True)
 
     for key, value in update_data.items():

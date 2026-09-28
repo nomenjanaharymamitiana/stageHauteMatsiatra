@@ -6,7 +6,15 @@ from sqlalchemy.orm import sessionmaker
 DATABASE_URL = "postgresql://postgres:allerenavant@localhost:5433/ged_db"
 
 engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Ajout de expire_on_commit=False pour éviter l'invalidation des objets ORM après un commit
+SessionLocal = sessionmaker(
+    autocommit=False, 
+    autoflush=False, 
+    bind=engine, 
+    expire_on_commit=False  # <-- CORRECTION ICI
+)
+
 Base = declarative_base()
 
 # Dépendance pour obtenir la session de BDD dans les routes

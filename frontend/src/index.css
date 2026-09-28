@@ -1,25 +1,28 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
+  /* Dynamic Palette: Bleu Pétrole (Mode Clair) */
+  --petrole-deep: #0b2535;      /* Bleu pétrole très sombre (Titres & contraste élevé) */
+  --petrole-text: #204051;      /* Bleu pétrole moyen (Texte courant) */
+  --petrole-bg: #f4f8fa;        /* Fond très léger teinté bleu pétrole */
+  --petrole-surface: #ffffff;   /* Surface pure (Cartes, containers) */
+  --petrole-border: #c4d7e0;    /* Bordures bleutées sobres */
+  --petrole-code-bg: #e2edf2;   /* Fond pour le code */
+  
+  --accent: #007791;            /* Bleu pétrole primaire (Accentuation / Actions) */
+  --accent-bg: rgba(0, 119, 145, 0.1);
+  --accent-border: rgba(0, 119, 145, 0.4);
+  --social-bg: rgba(226, 237, 242, 0.6);
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    rgba(11, 37, 53, 0.08) 0 10px 15px -3px, rgba(11, 37, 53, 0.04) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --heading: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  color: var(--petrole-text);
+  background: var(--petrole-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -30,19 +33,22 @@
   }
 }
 
+/* Dynamic Palette: Bleu Pétrole (Mode Sombre) */
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
+    --petrole-deep: #f0f7fb;    /* Bleu pétrole très clair (Titres en dark mode) */
+    --petrole-text: #b0cddb;    /* Bleu pétrole clair (Texte courant) */
+    --petrole-bg: #071621;      /* Fond sombre bleu pétrole */
+    --petrole-surface: #0e2230; /* Surface des éléments */
+    --petrole-border: #1a3a4e;  /* Bordures sombres */
+    --petrole-code-bg: #132d3e; /* Fond de code sombre */
+    
+    --accent: #26a69a;          /* Bleu-vert pétrole lumineux pour lisibilité */
+    --accent-bg: rgba(38, 166, 154, 0.15);
+    --accent-border: rgba(38, 166, 154, 0.5);
+    --social-bg: rgba(19, 45, 62, 0.6);
     --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+      rgba(0, 0, 0, 0.5) 0 10px 15px -3px, rgba(0, 0, 0, 0.3) 0 4px 6px -2px;
   }
 
   #social .button-icon {
@@ -52,6 +58,8 @@
 
 body {
   margin: 0;
+  background-color: var(--petrole-bg);
+  color: var(--petrole-text);
 }
 
 #root {
@@ -59,7 +67,8 @@ body {
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
-  border-inline: 1px solid var(--border);
+  border-inline: 1px solid var(--petrole-border);
+  background-color: var(--petrole-surface);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -69,8 +78,8 @@ body {
 h1,
 h2 {
   font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+  font-weight: 600;
+  color: var(--petrole-deep);
 }
 
 h1 {
@@ -82,6 +91,7 @@ h1 {
     margin: 20px 0;
   }
 }
+
 h2 {
   font-size: 24px;
   line-height: 118%;
@@ -91,6 +101,7 @@ h2 {
     font-size: 20px;
   }
 }
+
 p {
   margin: 0;
 }
@@ -100,12 +111,13 @@ code,
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 4px;
-  color: var(--text-h);
+  color: var(--petrole-deep);
 }
 
 code {
   font-size: 15px;
   line-height: 135%;
   padding: 4px 8px;
-  background: var(--code-bg);
+  background: var(--petrole-code-bg);
+  border: 1px solid var(--petrole-border);
 }
