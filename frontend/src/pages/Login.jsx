@@ -2,31 +2,32 @@ import React, { useState } from 'react';
 import { loginUser } from '../services/api';
 
 export default function Login({ onLoginSuccess }) {
-  // Langue active ('fr' par défaut, ou 'mg')
   const [lang, setLang] = useState('fr');
-  
-  // État du modal de connexion
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Formulaire de connexion
+  // Formulaire
   const [im, setIm] = useState('');
   const [mdp, setMdp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Dictionnaire de traductions FR / MG
+  // Traductions FR / MG
   const t = {
     fr: {
       appName: "GED Haute Matsiatra",
       appTagline: "Gestion Électronique des Documents & Archives Administratives",
-      districtName: "Région Haute Matsiatra - District de Fianarantsoa",
+      districtName: "Région Haute Matsiatra — District de Fianarantsoa",
       loginBtn: "Espace Agent",
       heroTitle: "Souveraineté Numérique & Traçabilité des Documents Officiels",
-      heroDesc: "Plateforme centralisée de dématérialisation, classification et archivage des pièces administratives et courriers pour le District de la Haute Matsiatra.",
-      exploreBtn: "Découvrir le fonctionnement",
+      heroDesc: "Plateforme centralisée de dématérialisation, classification et archivage des pièces administratives et courriers pour la Région Haute Matsiatra.",
+      exploreBtn: "Découvrir le système",
       accessBtn: "Connexion Agent (IM)",
       
-      // Section Fonctionnement
+      // Carte
+      mapTitle: "Couverture Territoriale — Région Haute Matsiatra",
+      mapSubtitle: "Le système GED interconnecte les services administratifs régionaux à Fianarantsoa.",
+      
+      // Workflow
       workflowTitle: "Fonctionnement du Système GED",
       workflowSubtitle: "Une chaîne de traitement sécurisée pour accélérer les démarches et sécuriser les archives.",
       
@@ -50,19 +51,23 @@ export default function Login({ onLoginSuccess }) {
       placeholderIm: "Ex: DAG001",
       btnSubmit: "Se connecter au Tableau de Bord",
       btnLoading: "Vérification en cours...",
-      footerRights: "© 2026 Region Haute Matsiatra. Tous droits réservés."
+      footerRights: "© 2026 Région Haute Matsiatra. Tous droits réservés."
     },
     mg: {
       appName: "GED Haute Matsiatra",
       appTagline: "Fitantanana ny Taratasy sy Tahirin-kevitra Ara-panjakana",
-      districtName: "Faritra Haute Matsiatra - Distrikan'i Fianarantsoa",
+      districtName: "Faritra Haute Matsiatra — Distrikan'i Fianarantsoa",
       loginBtn: "Mpiditra / Mpandraharaha",
       heroTitle: "Fitantanana sy Fiarovana ny Taratasy Ara-panjakana",
       heroDesc: "Sehatra iraisana amin'ny fanaovana numérisation sy fitahirizana ireo boky, kope, ary taratasy rehetra ho an'ny Faritra Haute Matsiatra.",
       exploreBtn: "Hijery ny fomba fiasa",
       accessBtn: "Hiditra (Laharana IM)",
       
-      // Section Fonctionnement
+      // Carte
+      mapTitle: "Saritanin'ny Faritra Haute Matsiatra",
+      mapSubtitle: "Mampifandray ireo sampan-draharaha ara-panjakana rehetra ao Fianarantsoa ny rafitra GED.",
+
+      // Workflow
       workflowTitle: "Fomba Fiasan'ny Rafitra GED",
       workflowSubtitle: "Dingana maivana sy antoka ho an'ny fanafainganam-pandehan'ny raharaham-panjakana.",
       
@@ -99,18 +104,13 @@ export default function Login({ onLoginSuccess }) {
 
     try {
       const response = await loginUser(im, mdp);
-      
       const userData = response.user || response;
       const token = response.access_token || response.token || response.im;
 
       localStorage.setItem('user', JSON.stringify(userData));
-      if (token) {
-        localStorage.setItem('token', token);
-      }
+      if (token) localStorage.setItem('token', token);
 
-      if (onLoginSuccess) {
-        onLoginSuccess(userData);
-      }
+      if (onLoginSuccess) onLoginSuccess(userData);
     } catch (err) {
       setError(
         err.response?.data?.detail || (lang === 'fr' 
@@ -124,7 +124,7 @@ export default function Login({ onLoginSuccess }) {
 
   return (
     <div style={styles.landingContainer}>
-      {/* BARRE DE NAVIGATION HEADER */}
+      {/* HEADER BAR */}
       <header style={styles.header}>
         <div style={styles.brandContainer}>
           <div style={styles.logoBadge}>G</div>
@@ -135,7 +135,6 @@ export default function Login({ onLoginSuccess }) {
         </div>
 
         <div style={styles.navRight}>
-          {/* BOUTON SELECTION LANGUE DYNAMIQUE */}
           <div style={styles.langSelector}>
             <button
               onClick={() => setLang('fr')}
@@ -166,7 +165,7 @@ export default function Login({ onLoginSuccess }) {
         </div>
       </header>
 
-      {/* BANNIÈRE HERO */}
+      {/* HERO SECTION */}
       <section style={styles.heroSection}>
         <div style={styles.heroContent}>
           <span style={styles.badgeTag}>{currText.appTagline}</span>
@@ -180,15 +179,34 @@ export default function Login({ onLoginSuccess }) {
             >
               {currText.accessBtn} &rarr;
             </button>
-            <a href="#workflow" style={styles.secondaryHeroBtn}>
+            <a href="#mapSection" style={styles.secondaryHeroBtn}>
               {currText.exploreBtn}
             </a>
           </div>
         </div>
       </section>
 
-      {/* SECTION EXPLICATION DU FONCTIONNEMENT */}
-      <section id="workflow" style={styles.workflowSection}>
+      {/* CARTE OPENSTREETMAP - HAUTE MATSIATRA / FIANARANTSOA */}
+      <section id="mapSection" style={styles.mapSection}>
+        <div style={styles.sectionHeader}>
+          <h3 style={styles.sectionTitle}>{currText.mapTitle}</h3>
+          <p style={styles.sectionSubtitle}>{currText.mapSubtitle}</p>
+        </div>
+        <div style={styles.mapContainer}>
+          <iframe
+            title="Carte Haute Matsiatra - Fianarantsoa"
+            width="100%"
+            height="380"
+            style={{ border: 0, borderRadius: '16px' }}
+            loading="lazy"
+            allowFullScreen
+            src="https://www.openstreetmap.org/export/embed.html?bbox=46.9000%2C-21.6000%2C47.3000%2C-21.3000&amp;layer=mapnik&amp;marker=-21.4536%2C47.0858"
+          ></iframe>
+        </div>
+      </section>
+
+      {/* SECTION WORKFLOW */}
+      <section style={styles.workflowSection}>
         <div style={styles.sectionHeader}>
           <h3 style={styles.sectionTitle}>{currText.workflowTitle}</h3>
           <p style={styles.sectionSubtitle}>{currText.workflowSubtitle}</p>
@@ -226,7 +244,7 @@ export default function Login({ onLoginSuccess }) {
         <p>{currText.footerRights}</p>
       </footer>
 
-      {/* MODAL DE CONNEXION DYNAMIQUE */}
+      {/* MODAL DE CONNEXION */}
       {showLoginModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.card}>
@@ -280,11 +298,11 @@ export default function Login({ onLoginSuccess }) {
   );
 }
 
-// FEUILLE DE STYLE MODERNISÉE
+// PALETTE : BLEU PÉTROLE (#085f63 / #0e3b43) + GRIS (#f4f6f8 / #e2e8f0) + BLANC (#ffffff)
 const styles = {
   landingContainer: {
     minHeight: '100vh',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f4f6f8',
     fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     color: '#1e293b',
   },
@@ -298,29 +316,31 @@ const styles = {
     position: 'sticky',
     top: 0,
     zIndex: 10,
+    boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
   },
   brandContainer: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '14px',
   },
   logoBadge: {
-    width: '40px',
-    height: '40px',
-    backgroundColor: '#2563eb',
+    width: '42px',
+    height: '42px',
+    backgroundColor: '#085f63',
     color: '#ffffff',
-    borderRadius: '8px',
+    borderRadius: '10px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: '800',
-    fontSize: '20px',
+    fontSize: '22px',
+    boxShadow: '0 4px 10px rgba(8, 95, 99, 0.25)',
   },
   brandTitle: {
     margin: 0,
-    fontSize: '18px',
+    fontSize: '19px',
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#0e3b43',
   },
   brandSubtitle: {
     margin: 0,
@@ -334,61 +354,61 @@ const styles = {
   },
   langSelector: {
     display: 'flex',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#e2e8f0',
     borderRadius: '20px',
     padding: '3px',
-    border: '1px solid #cbd5e1',
   },
   langBtn: {
     border: 'none',
     backgroundColor: 'transparent',
-    padding: '6px 12px',
+    padding: '6px 14px',
     borderRadius: '16px',
     fontSize: '13px',
     fontWeight: '600',
     cursor: 'pointer',
-    color: '#64748b',
+    color: '#475569',
     transition: 'all 0.2s ease',
   },
   langBtnActive: {
     backgroundColor: '#ffffff',
-    color: '#2563eb',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    color: '#085f63',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
   },
   loginModalTriggerBtn: {
-    backgroundColor: '#0f172a',
+    backgroundColor: '#085f63',
     color: '#ffffff',
     border: 'none',
-    padding: '10px 18px',
+    padding: '10px 20px',
     borderRadius: '8px',
     fontWeight: '600',
     fontSize: '14px',
     cursor: 'pointer',
+    transition: 'background 0.2s ease',
   },
   heroSection: {
-    padding: '80px 24px 60px',
-    background: 'linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)',
+    padding: '70px 24px 50px',
+    background: 'linear-gradient(180deg, #ffffff 0%, #f4f6f8 100%)',
     textAlign: 'center',
   },
   heroContent: {
-    maxWidth: '800px',
+    maxWidth: '820px',
     margin: '0 auto',
   },
   badgeTag: {
-    backgroundColor: '#dbeafe',
-    color: '#1e40af',
-    padding: '6px 14px',
+    backgroundColor: '#e0f2f1',
+    color: '#085f63',
+    padding: '6px 16px',
     borderRadius: '20px',
     fontSize: '13px',
     fontWeight: '600',
     display: 'inline-block',
-    marginBottom: '16px',
+    marginBottom: '18px',
   },
   heroTitle: {
     fontSize: '36px',
     lineHeight: '1.25',
     fontWeight: '800',
-    color: '#0f172a',
+    color: '#0e3b43',
     margin: '0 0 16px',
   },
   heroDesc: {
@@ -403,7 +423,7 @@ const styles = {
     gap: '16px',
   },
   primaryHeroBtn: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#085f63',
     color: '#ffffff',
     border: 'none',
     padding: '14px 28px',
@@ -411,11 +431,11 @@ const styles = {
     fontWeight: '600',
     fontSize: '15px',
     cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+    boxShadow: '0 4px 14px rgba(8, 95, 99, 0.3)',
   },
   secondaryHeroBtn: {
     backgroundColor: '#ffffff',
-    color: '#334155',
+    color: '#0e3b43',
     border: '1px solid #cbd5e1',
     padding: '14px 28px',
     borderRadius: '8px',
@@ -424,19 +444,31 @@ const styles = {
     textDecoration: 'none',
     display: 'inline-block',
   },
+  mapSection: {
+    maxWidth: '1100px',
+    margin: '40px auto 0',
+    padding: '0 24px',
+  },
+  mapContainer: {
+    borderRadius: '16px',
+    overflow: 'hidden',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+    border: '1px solid #e2e8f0',
+    backgroundColor: '#ffffff',
+  },
   workflowSection: {
     maxWidth: '1100px',
     margin: '60px auto',
-    padding: '0 24px 80px',
+    padding: '0 24px 60px',
   },
   sectionHeader: {
     textAlign: 'center',
-    marginBottom: '48px',
+    marginBottom: '36px',
   },
   sectionTitle: {
-    fontSize: '26px',
+    fontSize: '24px',
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#0e3b43',
     margin: '0 0 8px',
   },
   sectionSubtitle: {
@@ -454,7 +486,7 @@ const styles = {
     padding: '24px',
     borderRadius: '12px',
     border: '1px solid #e2e8f0',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
   },
   featureIcon: {
     fontSize: '32px',
@@ -463,7 +495,7 @@ const styles = {
   featureTitle: {
     fontSize: '16px',
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#0e3b43',
     margin: '0 0 8px',
   },
   featureDesc: {
@@ -477,7 +509,7 @@ const styles = {
     padding: '24px',
     textAlign: 'center',
     fontSize: '13px',
-    color: '#94a3b8',
+    color: '#64748b',
     backgroundColor: '#ffffff',
   },
   modalOverlay: {
@@ -486,7 +518,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    backgroundColor: 'rgba(14, 59, 67, 0.65)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -509,7 +541,7 @@ const styles = {
   },
   modalTitle: {
     margin: 0,
-    color: '#0f172a',
+    color: '#0e3b43',
     fontSize: '20px',
     fontWeight: '700',
   },
@@ -546,7 +578,7 @@ const styles = {
   button: {
     width: '100%',
     padding: '12px',
-    backgroundColor: '#2563eb',
+    backgroundColor: '#085f63',
     color: '#ffffff',
     border: 'none',
     borderRadius: '8px',

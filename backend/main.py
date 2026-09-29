@@ -1,5 +1,6 @@
 import os
 from contextlib import asynccontextmanager
+from routes import journal
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -49,6 +50,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(document_router)
 app.include_router(utilisateur_router)
+app.include_router(journal.router)
 
 
 @app.get("/")
