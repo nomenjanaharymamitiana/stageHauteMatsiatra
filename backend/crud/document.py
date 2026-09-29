@@ -11,6 +11,17 @@ import schemas
 UPLOAD_DIR = "./uploaded_documents"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+def create_log(db: Session, desc: str, im_user: str, num_ref_doc: Optional[str] = None):
+    """Fonction utilitaire pour enregistrer une action dans le Journal."""
+    log_entry = models.Journal(
+        id_jour=str(uuid.uuid4())[:8],
+        date_action=date.today(),
+        desc=desc,
+        num_ref_doc=num_ref_doc,
+        im_user=im_user
+    )
+    db.add(log_entry)
+
 def get_agent_dag_rh(db: Session, im_dag_rh: str):
     return db.query(models.Utilisateur).filter(models.Utilisateur.im == im_dag_rh).first()
 
@@ -61,18 +72,17 @@ def create_document(
     )
     db.add(new_doc)
     
-    log_entry = models.Journal(
-        id_jour=str(uuid.uuid4())[:8],
-        date_action=date.today(),
-        desc=f"Ajout du document {num_ref} par l'agent {im_dag_rh}",
-        num_ref_doc=num_ref,
-        im_user=im_dag_rh
-    )
-    db.add(log_entry)
+    # Journalisation
+    create_log(db, f"Ajout du document {num_ref}", im_dag_rh, num_ref)
     
     db.commit()
     db.refresh(new_doc)
     return new_doc
+
+def log_document_action(db: Session, num_ref: str, im_user: str, action_desc: str):
+    """Permet de journaliser des actions comme la consultation ou le téléchargement."""
+    create_log(db, f"{action_desc} du document {num_ref}", im_user, num_ref)
+    db.commit()
 
 def search_documents(
     db: Session,
@@ -107,6 +117,16 @@ def get_all_documents(db: Session, skip: int = 0, limit: int = 50) -> List[model
         .all()
     )
 
+def get_documents_by_user(db: Session, im_user: str, skip: int = 0, limit: int = 50) -> List[models.Document]:
+    return (
+        db.query(models.Document)
+        .filter(models.Document.im_dag_rh == im_user, models.Document.est_sup == False)
+        .order_by(models.Document.date_num.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
 def get_trash_documents(db: Session) -> List[models.Document]:
     return (
         db.query(models.Document)
@@ -121,15 +141,9 @@ def soft_delete_document(db: Session, num_ref: str, im_user: str):
         return None
 
     doc.est_sup = True
-
-    log_entry = models.Journal(
-        id_jour=str(uuid.uuid4())[:8],
-        date_action=date.today(),
-        desc=f"Document mis en corbeille: {num_ref}",
-        num_ref_doc=num_ref,
-        im_user=im_user
-    )
-    db.add(log_entry)
+    
+    # Journalisation
+    create_log(db, f"Mise en corbeille du document {num_ref}", im_user, num_ref)
 
     db.commit()
     db.refresh(doc)
@@ -142,14 +156,8 @@ def restore_document(db: Session, num_ref: str, im_user: str):
 
     doc.est_sup = False
 
-    log_entry = models.Journal(
-        id_jour=str(uuid.uuid4())[:8],
-        date_action=date.today(),
-        desc=f"Restauration du document: {num_ref}",
-        num_ref_doc=num_ref,
-        im_user=im_user
-    )
-    db.add(log_entry)
+    # Journalisation
+    create_log(db, f"Restauration du document {num_ref}", im_user, num_ref)
 
     db.commit()
     db.refresh(doc)
@@ -163,20 +171,14 @@ def hard_delete_document(db: Session, num_ref: str, im_user: str):
     if os.path.exists(doc.file_path):
         os.remove(doc.file_path)
 
-    log_entry = models.Journal(
-        id_jour=str(uuid.uuid4())[:8],
-        date_action=date.today(),
-        desc=f"Suppression définitive du document {num_ref}",
-        num_ref_doc=None,
-        im_user=im_user
-    )
-    db.add(log_entry)
+    # Journalisation (num_ref_doc à None car le document est définitivement supprimé)
+    create_log(db, f"Suppression définitive du document {num_ref}", im_user, None)
 
     db.delete(doc)
     db.commit()
     return True
 
-def update_document(db: Session, num_ref: str, doc_update: schemas.DocumentUpdate):
+def update_document(db: Session, num_ref: str, doc_update: schemas.DocumentUpdate, im_user: str):
     db_doc = db.query(models.Document).filter(models.Document.num_ref == num_ref, models.Document.est_sup == False).first()
     if not db_doc:
         return None
@@ -185,6 +187,9 @@ def update_document(db: Session, num_ref: str, doc_update: schemas.DocumentUpdat
 
     for key, value in update_data.items():
         setattr(db_doc, key, value)
+
+    # Journalisation
+    create_log(db, f"Mise à jour des informations du document {num_ref}", im_user, num_ref)
 
     db.commit()
     db.refresh(db_doc)
